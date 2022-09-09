@@ -1,0 +1,45 @@
+#NASABAH
+{
+    "nik" : "32770121",
+    "nama" : "Rafi",
+    "no_hp" : "085730845019", 
+    "pekerjaan" : "Mahasiswa",
+    "username" : "rafi21",
+    "email" : "rafi21@gmail.com",
+    "password" : "123"
+}
+{
+    "nik" : "32770122",
+    "nama" : "Tomy",
+    "no_hp" : "085730845010", 
+    "pekerjaan" : "Freelancer",
+    "username" : "tomyst_",
+    "email" : "tomy@gmail.com",
+    "password" : "321"
+}
+
+{
+    "nik" : "32770141",
+    "nama" : "Aulia",
+    "no_hp" : "081743332011", 
+    "pekerjaan" : "Penyamun",
+    "username" : "Maulina",
+    "email" : "aul_ganteng@gmail.com",
+    "password" : "123"
+}
+
+#CABANG
+{
+    "regional" : "",
+    "nama" : "",
+    "alamat" : "",
+    "kota" : ""
+}
+
+#ACCOUNT
+
+
+insert into account(no_rekening, saldo, status, aktivitas, id_nasabah, id_cabang )
+values
+-- ('1530202331', 55000, 'aktif', '2022/04/04', 1, 1),
+('1530202332', 550000, 'aktif', '2022/04/05', 1, 1)
