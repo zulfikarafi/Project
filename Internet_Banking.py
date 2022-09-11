@@ -1,6 +1,7 @@
 from asyncio.windows_events import NULL
 import base64
 import random
+import time
 from datetime import datetime, date
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
@@ -64,7 +65,7 @@ def auth_nasabah(auth):
     password = lst[1]   
     nasabah = Nasabah.query.filter_by(username=username).filter_by(password=password).first()
     if nasabah:
-        return str(nasabah.id_nasabah)
+        return (nasabah.id_nasabah)
     else:
         return 
     
@@ -121,27 +122,26 @@ def create_nasabah():
     }, 201
 
 @app.route('/cabang/nasabah', methods=['GET']) #by admin 
-def get_nasabah():
+def get_():
     decode = request.headers.get('Authorization')
     allow = auth_cabang(decode)
-    cabang = Cabang.query.filter_by(id_cabang=allow).first()
-    if not cabang :
-        return {
-            'pesan': 'Akses Ditolak !!'
-        }, 400
+    # cabang = Cabang.query.filter_by(id_cabang=allow).filter_by(id_).first()
+    if not allow :
+            return {
+                    "pesan" : "akses ditolak !!"
+                }, 400
     else:
-        return jsonify([
-            {
-                'nik' : nasabah.nik,
-                'nama' : nasabah.nama,
-                'no_hp' : nasabah.no_hp,
-                'pekerjaan' : nasabah.pekerjaan,
-                'username' : nasabah.username,
-                'email' : nasabah.email,
-                'password' : nasabah.password
-            } for nasabah in Nasabah.query.all() 
-        ]), 201
-
+        
+        nasabah_ = db.engine.execute(f"select id_nasabah from account where id_cabang = {allow} group by id_nasabah")
+        arr = []
+        for i in nasabah_:
+            a = Nasabah.query.filter_by(id_nasabah=i.id_nasabah).first()
+            arr.append({
+                'nama' : a.nama,
+                'email' : a.email
+            })
+        return jsonify(arr)
+       
 @app.route('/nasabah/update', methods=['PUT'])#by user
 def update_nasabah():
     decode = request.headers.get('Authorization')
@@ -197,20 +197,18 @@ def get_cabang_login():
     decode = request.headers.get('Authorization')
     allow = auth_cabang(decode)
     cabang = Cabang.query.filter_by(id_cabang=allow).first()
-    if not cabang :
+    if not allow :
         return {
-            'pesan': 'Akses Ditolak !!'
-        }, 400
+                "pesan" : "akses ditolak !!"
+            }, 400
     else:
-        return jsonify([
-            {
-                'regional' : cabang.regional,
-                'nama' : cabang.nama,
-                'alamat' : cabang.alamat,
-                'kota' : cabang.kota
-            } for cabang in Cabang.query.all() 
-        ]), 201
-
+        return jsonify([{
+                "regional" : cabang.regional,
+                "nama" : cabang.nama,
+                "alamat" : cabang.alamat,
+                "kota" : cabang.kota
+            }]), 201
+        
 @app.route('/cabang/update', methods=['PUT']) #by admin
 def update_cabang():
     decode = request.headers.get('Authorization')
@@ -230,6 +228,75 @@ def update_cabang():
         return {
             "pesan": "data telah tersimpan"
             }, 201
+
+@app.route('/cabang/total', methods=['GET'])
+def jumlah_account():
+    decode = request.headers.get('Authorization')
+    allow = auth_cabang(decode)
+    cabang = Cabang.query.filter_by(id_cabang=allow).first()
+    if not cabang :
+        return {
+            'pesan': 'Akses Ditolak !!'
+        }, 400
+    else:
+        total = db.engine.execute("select count(account.id_account), count(distinct(account.id_nasabah)), sum(account.saldo) from account inner join cabang on account.id_cabang = cabang.id_cabang")
+        arr = []
+        for i in total:
+            arr.append (
+                {
+                    'total_account' : i[0],
+                    'total_nasabah' : i[1],
+                    'Jumlah_saldo' : i[2]
+                    
+                }), 201
+        return jsonify(arr)
+
+@app.route('/cabang/total_percabang', methods=['GET'])
+def jumlah_account_percabang():
+    decode = request.headers.get('Authorization')
+    allow = auth_cabang(decode)
+    cabang = Cabang.query.filter_by(id_cabang=allow).first()
+    if not cabang :
+        return {
+            'pesan': 'Akses Ditolak !!'
+        }, 400
+    else:
+        total = db.engine.execute(f"select count(account.id_account), count(distinct(account.id_nasabah)), sum(account.saldo) from account inner join cabang on account.id_cabang = cabang.id_cabang where account.id_cabang = {allow}")
+        arr = []
+        for i in total:
+            arr.append (
+                {
+                    'total_account' : i[0],
+                    'total_nasabah' : i[1],
+                    'Jumlah_saldo' : i[2]
+                    
+                }), 201
+        return jsonify(arr)
+
+@app.route('/cabang/transaksi_periode', methods=['GET'])
+def jumlah_transaksi():
+    decode = request.headers.get('Authorization')
+    allow = auth_cabang(decode)
+    cabang = Cabang.query.filter_by(id_cabang=allow).first()
+    data = request.get_json()
+    waktu_1 = data["waktu_1"]
+    waktu_2 = datetime.now()
+    # waktu_2 = time.mktime(datetime.strptime(a,"%Y-%m-%d").timetuple())
+    if not cabang :
+        return {
+            'pesan': 'Akses Ditolak !!'
+        }, 400
+    else:
+        total = db.engine.execute(f"select  b.masuk, a.keluar, c.periode from (select sum(transaksi.saldo_keluar) as keluar from transaksi inner join account on transaksi.id_pengirim = account.id_account  inner join cabang on account.id_cabang = cabang.id_cabang where account.id_cabang = 2)a,(select sum(transaksi.saldo_masuk) as masuk from transaksi inner join account on transaksi.id_penerima = account.id_account  inner join cabang on account.id_cabang = cabang.id_cabang where account.id_cabang = 2)b, (select transaksi.waktu as periode from transaksi inner join account on transaksi.id_penerima = account.id_account  inner join cabang on account.id_cabang = cabang.id_cabang where waktu BETWEEN '2022-09-01' AND '{waktu_2}')c")
+        arr = []
+        for i in total:
+            arr.append (
+                {
+                    'total_masuk' : i[0],
+                    'total_keluar' : i[1],
+                    'periode' : i[2]
+                }), 201
+        return jsonify(arr)
 
 
 
@@ -336,7 +403,11 @@ def transaksi_transfer():
     id_nasabah = auth_nasabah(decode)
     if id_nasabah :
         data = request.get_json()
-        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).first()       #query di postman
+        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).filter_by(id_nasabah=id_nasabah).first() 
+        if not pengirim :
+            return {
+                    "pesan" : "akses ditolak !!"
+                }, 400
         penerima = Account.query.filter_by(id_account=data['id_penerima']).first() 
         day_off = datetime.now() - pengirim.last_update
         no_activity = day_off.days   
@@ -386,7 +457,7 @@ def transaksi_transfer():
                         saldosebelum = pengirim.saldo + data['saldo_keluar']
                         t = Transaksi( 
                             waktu = datetime.now(),
-                            saldo_masuk = 0,
+                            saldo_masuk = data['saldo_keluar'],
                             saldo_keluar = data['saldo_keluar'],
                             jenis_transaksi = "Transfer",
                             id_pengirim = data['id_pengirim'],              
@@ -418,7 +489,7 @@ def transaksi_transfer():
                         saldosebelum = pengirim.saldo + data['saldo_keluar']
                         t = Transaksi( 
                             waktu = datetime.now(),
-                            saldo_masuk = 0,
+                            saldo_masuk = data['saldo_keluar'],
                             saldo_keluar = data['saldo_keluar'],
                             jenis_transaksi = "Transfer",
                             id_pengirim = data['id_pengirim'],              
@@ -467,13 +538,13 @@ def transaksi_setor_tunai():
                 }, 400
         else:
             penerima.last_update == datetime.now()
-            saldosebelum = penerima.saldo - data['saldo_masuk']
+            # saldosebelum = penerima.saldo - data['saldo_masuk']
             t = Transaksi( 
                 waktu = datetime.now(),
                 saldo_masuk = data['saldo_masuk'],
                 saldo_keluar = 0,
                 jenis_transaksi = "Setor Tunai",
-                # id_pengirim = data['id_pengirim'],              
+                id_pengirim = data['id_penerima'],              
                 id_penerima = data['id_penerima']               
                 )
             penerima.saldo = penerima.saldo + data['saldo_masuk']
@@ -482,7 +553,7 @@ def transaksi_setor_tunai():
             return { 
                 "waktu" : datetime.now(),
                 "setor_tunai" : data['saldo_masuk'],
-                "saldo_sebelum" : saldosebelum,                                                    
+                # "saldo_sebelum" : saldosebelum,                                                    
                 "saldo_sesudah" : penerima.saldo
             }, 201
 
@@ -492,7 +563,11 @@ def transaksi_debit():
     id_nasabah = auth_nasabah(decode)
     if id_nasabah :
         data = request.get_json()
-        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).first_or_404()       #query di postman 
+        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).filter_by(id_nasabah=id_nasabah).first() 
+        if not pengirim :
+            return {
+                    "pesan" : "akses ditolak !!"
+                }, 400       #query di postman 
         day_off = datetime.now() - pengirim.last_update
         no_activity = day_off.days   
         if no_activity > 90 :
@@ -536,7 +611,11 @@ def transaksi_tarik_tunai():
     id_nasabah = auth_nasabah(decode)
     if id_nasabah :
         data = request.get_json()
-        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).first()       #query di postman 
+        pengirim = Account.query.filter_by(id_account=data['id_pengirim']).filter_by(id_nasabah=id_nasabah).first() 
+        if not pengirim :
+            return {
+                    "pesan" : "akses ditolak !!"
+                }, 400        
         day_off = datetime.now() - pengirim.last_update
         no_activity = day_off.days   
         if no_activity > 90 :
@@ -573,55 +652,6 @@ def transaksi_tarik_tunai():
         return {
             'pesan': 'Akses Ditolak !!'
         }, 400
-
-# ----------------------------------------------------------------------------------------------->>> TRANSAKSI (belum)
-
-
-# @app.route('/transaksi/kredit', methods=['POST']) #by user
-# def post_transaksi_kredit():
-#     decode = request.headers.get('Authorization')
-#     id_nasabah = auth_nasabah(decode)
-#     if id_nasabah :
-#         data = request.get_json()
-#         accounts = Account.query.filter_by(id_account=data['id_account']).first()
-#         day_off = datetime.now() - accounts.last_update
-#         no_activity = day_off.days    
-#         if no_activity > 90 :
-#             accounts.status == "Tidak Aktif"
-#             return {
-#                     "pesan" : "akun anda tidak aktif"
-#                 }, 400
-#         else :
-#             accounts.status == "Aktif"
-#             if accounts.saldo - data['kredit'] > 50000 :
-#                 accounts.saldo = accounts.saldo - data['kredit']
-#                 accounts.last_update == datetime.now()
-#                 saldo_sebelum = accounts.saldo + data['kredit']
-#                 t = Transaksi( 
-#                     waktu = datetime.now(),                                                    
-#                     saldo_masuk = 0,
-#                     transfer = 0,
-#                     debit = 0,
-#                     kredit = data['kredit'],
-#                     tarik_tunai = 0,
-#                     id_account = data['id_account']
-#                     )
-#                 db.session.add(t)
-#                 db.session.commit()
-#                 return { 
-#                     "waktu" : datetime.now(),
-#                     "saldo_sebelum" : saldo_sebelum,
-#                     "saldo_setelah" : accounts.saldo,                                                    
-#                     "kredit" : data['kredit']
-#                 }, 201
-#             else:
-#                 return {
-#                     "pesan": "saldo anda tidak cukup"
-#                 }, 400
-#     else :
-#         return {
-#             'pesan': 'Akses Ditolak !!'
-#         }, 400
 
 @app.route('/transaksi/history', methods=['GET']) #by user
 def get_transaksi():
